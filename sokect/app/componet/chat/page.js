@@ -38,7 +38,10 @@ export default function Chat() {
       try {
         const res= await fetch('http://localhost:8080/api/v1/socket/getChats');
         const data= await res.json();
-        setChat(data.chats);
+        console.log(data.chats)
+        const filteredChats = data.chats.filter(chat => chat.room === roomId);
+        console.log(filteredChats)
+        setChat(filteredChats);
       }
       catch (error) {
         console.log("Error fetching chats", error);
@@ -82,7 +85,8 @@ export default function Chat() {
           username: msgData.username,
           message: msgData.message,
           date: new Date(),
-          time: msgData.time
+          time: msgData.time,
+          room: msgData.room
         }),
       });
       socket.emit("sendmsg", msgData);
