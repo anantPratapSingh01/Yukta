@@ -6,6 +6,7 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "appwrite": "^21.4.0",
     "cors": "^2.8.5",
     "express": "^5.1.0",
     "framer-motion": "^12.23.24",
