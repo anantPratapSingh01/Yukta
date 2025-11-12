@@ -48,7 +48,6 @@ export default function LoginPage() {
     }
   };
 
-  // ✅ Verify code and redirect
   const handleVerifyCode = async () => {
     if (code.length !== 6 || !/^\d{6}$/.test(code)) {
       setError('Enter the Correct Code');
@@ -73,8 +72,6 @@ export default function LoginPage() {
       }
 
       setIsVerified(true);
-
-      // ✅ Auto-redirect to /chats after successful verification
       setTimeout(() => {
         router.push('/chats');
       }, 1000);
