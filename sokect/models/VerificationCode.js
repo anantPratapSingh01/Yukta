@@ -1,10 +1,17 @@
 // models/VerificationCode.js
-import { Schema, model } from 'mongoose';
+import mongoose from 'mongoose';
 
-const verificationCodeSchema = new Schema({
-  email: { type: String, required: true, lowercase: true },
+const verificationCodeSchema = new mongoose.Schema({
+  email: { type: String, required: true, unique: true },
   code: { type: String, required: true },
-  createdAt: { type: Date, expires: '60s', default: Date.now } // Auto-delete after 60s
-});
+  expiresAt: {
+    type: Date,
+    required: true,
+    default: () => new Date(Date.now() + 10 * 60 * 1000) // 10 minutes from now
+  },
+}, { timestamps: true });
 
-export default model('VerificationCode', verificationCodeSchema);
+const VerificationCode = mongoose.models.VerificationCode ||
+  mongoose.model('VerificationCode', verificationCodeSchema);
+
+export default VerificationCode;
