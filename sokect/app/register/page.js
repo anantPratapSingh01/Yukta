@@ -13,12 +13,18 @@ export default function RegisterPage() {
 
   // Step 1: Send OTP
   const handleSendCode = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setError('');
-    setSuccess('');
+  e.preventDefault();
+  setLoading(true);
+  setError('');
+  setSuccess('');
 
-    try {
+  try {
+    const UserExist = await fetch(`/api/findOne-user?email=${email}`, {
+      method: 'GET',
+    });
+
+    if (!UserExist.ok) {
+      
       const res = await fetch('/api/send-code', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -34,12 +40,17 @@ export default function RegisterPage() {
 
       setStep('otp');
       setSuccess('Verification code sent to your email!');
-    } catch (err) {
-      setError('Network error. Please try again.');
-    } finally {
-      setLoading(false);
+    } else {
+      setError('User already exists');
+      return;
     }
-  };
+  } catch (err) {
+    setError('Network error. Please try again.');
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   // Step 2: Verify OTP
   const handleVerifyCode = async (e) => {
@@ -59,6 +70,22 @@ export default function RegisterPage() {
       if (!res.ok) {
         setError(data.error || 'Invalid or expired code');
         return;
+      }
+
+      if(res.ok){
+        const UserSave=await fetch('/api/register-user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, name }),
+      });
+          console.log("Userdata",UserSave)
+        const userData=await UserSave.json();
+        console.log("userdata in json",useState)
+          if (!UserSave.ok) {
+        setError(userData.error || 'user not register');
+        return;
+      }
+        
       }
 
       setStep('success');

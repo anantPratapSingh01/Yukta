@@ -18,15 +18,21 @@ export default function LoginPage() {
 
   // ✅ Send verification code
   const handleSendCode = async () => {
-    if (!email || !/^\S+@\S+\.\S+$/.test(email)) {
-      setError('Enter a Valid Email');
-      return;
-    }
+  if (!email || !/^\S+@\S+\.\S+$/.test(email)) {
+    setError('Enter a valid email');
+    return;
+  }
 
-    setLoading(true);
-    setError('');
+  setLoading(true);
+  setError('');
 
-    try {
+  try {
+    const userExistRes = await fetch(`/api/findOne-user?email=${email}`, {
+      method: 'GET',
+    });
+
+    if (userExistRes.ok) {
+     
       const res = await fetch('/api/send-code', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -41,12 +47,18 @@ export default function LoginPage() {
       }
 
       setIsCodeSent(true);
-    } catch (err) {
-      setError('Network error. Please try again.');
-    } finally {
-      setLoading(false);
+    } else {
+      setError('User not found. Please register first.');
+      return;
     }
-  };
+  } catch (err) {
+    console.error(err);
+    setError('Network error. Please try again.');
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   const handleVerifyCode = async () => {
     if (code.length !== 6 || !/^\d{6}$/.test(code)) {
