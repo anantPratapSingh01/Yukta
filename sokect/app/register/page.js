@@ -85,6 +85,16 @@ export default function RegisterPage() {
         setError(userData.error || 'user not register');
         return;
       }
+      if(UserSave.ok){
+         const res=await fetch('/api/findOne-user', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+        const userVrify=await res.json()
+        console.log(userVrify)
+
+      }
         
       }
 

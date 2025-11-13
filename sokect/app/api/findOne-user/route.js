@@ -26,3 +26,21 @@ export async function GET(req) {
     return NextResponse.json({ error: "Internal Error" }, { status: 500 });
   }
 }
+
+export async function PATCH(req) {
+  try {
+    await connectDB();
+    const body=await req.json();
+    const {email}=body;
+
+    const userUpdate=await User.findOneAndUpdate({email},{isVerified:true},{ new: true } )
+    if(!userUpdate){
+      return NextResponse.json({ error: "User not update" }, { status: 404 });
+    }
+
+     return NextResponse.json({ message: "User Update", userUpdate }, { status: 200 });
+  } catch (error) {
+    return NextResponse.json({ error: "Internal Error" }, { status: 500 });
+  }
+  
+}
