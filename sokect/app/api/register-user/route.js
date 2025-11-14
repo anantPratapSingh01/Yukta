@@ -31,3 +31,13 @@ export async function POST(req) {
     return NextResponse.json({ error: 'Failed to register user' }, { status: 500 });
   }
 }
+
+export async function GET(req) {
+  try {
+    await connectDB();
+    const users = await User.find({});
+    return NextResponse.json({ users }, { status: 200 });
+  } catch (error) {
+    return NextResponse.json({ error: 'Failed to fetch users' }, { status: 500 });
+  }
+}

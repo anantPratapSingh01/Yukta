@@ -1,14 +1,15 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import { io } from 'socket.io-client';
 
 export default function ChatsPage() {
   // Sample contacts
   const contacts = [
-    { id: '1', name: 'Rahul Sharma', lastMsg: 'Haan bhai, kal milenge', time: '10:30 AM', dp: '👤' },
-    { id: '2', name: 'Priya Verma', lastMsg: 'Photos bhej diye?', time: '9:45 AM', dp: '👩' },
-    { id: '3', name: 'Amit Sir', lastMsg: 'Meeting 3 PM', time: 'Yesterday', dp: '👔' },
-    { id: '4', name: 'Family Group', lastMsg: 'Papa: Khana kha liya?', time: 'Mon', dp: '👪' },
+    { id: '1', name: 'Rahul Sharma', lastMsg: 'Haan bhai, kal milenge', time: '10:30 AM', dp: '👤', email: 'rahul@example.com' },
+    { id: '2', name: 'Priya Verma', lastMsg: 'Photos bhej diye?', time: '9:45 AM', dp: '👩', email: 'priya@example.com' },
+    { id: '3', name: 'Amit Sir', lastMsg: 'Meeting 3 PM', time: 'Yesterday', dp: '👔', email: 'amit@example.com' },
+    { id: '4', name: 'Family Group', lastMsg: 'Papa: Khana kha liya?', time: 'Mon', dp: '👪', email: 'family@example.com' },
   ];
 
   // Mock chat history per contact
@@ -30,9 +31,70 @@ export default function ChatsPage() {
   const [inputText, setInputText] = useState('');
   const [showAttachmentMenu, setShowAttachmentMenu] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [allUsers, setAllUsers] = useState([]);
+  const [filteredUsers, setFilteredUsers] = useState([]);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const inputRef = useRef(null);
+  const dropdownRef = useRef(null);
+  const [socket, setSocket] = useState(null);
+  const [reciver, setReciver] = useState(null);
+  const [UserData, setUserData] = useState({email: 'user@example.com'}); // Mock user data
+
+  // New notification states
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [notifications, setNotifications] = useState([]);
 
   const messagesEndRef = useRef(null);
   const attachmentRef = useRef(null);
+
+  useEffect(() => {
+    const AllUser = async () => {
+      try {
+        const res = await fetch('/api/register-user');
+        const data = await res.json();
+        setAllUsers(data.users);
+      } catch (error) {
+        console.log("Error fetching users:", error);
+      }
+    };
+    AllUser();
+  }, []);
+
+  useEffect(() => {
+    if (searchTerm.trim() === '') {
+      setFilteredUsers(allUsers);
+    } else {
+      const filtered = allUsers.filter(user =>
+        user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        user.name.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+      setFilteredUsers(filtered);
+    }
+  }, [searchTerm, allUsers]);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (inputRef.current && !inputRef.current.contains(event.target) &&
+          dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setShowDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    try {
+      const newSocket = io('http://localhost:8080');
+      setSocket(newSocket);
+      return () => newSocket.disconnect();
+    } catch (error) {
+      console.log(error);
+    }
+  }, []);
 
   // Close attachment menu when clicking outside
   useEffect(() => {
@@ -53,17 +115,78 @@ export default function ChatsPage() {
   const handleContactClick = (contact) => {
     setSelectedContact(contact);
     setMessages(chatHistory[contact.id] || []);
+
+    socket?.emit('join_room', { room: contact.email });
+    setReciver(contact);
   };
 
-  const handleSend = () => {
-    if (inputText.trim() === '') return;
-    const newMsg = {
-      id: Date.now(),
-      text: inputText,
-      sender: 'me',
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+  useEffect(() => {
+    if (socket) {
+      socket.on("recivedmsg", (data) => {
+        setMessages((prev) => [...prev, data]);
+      });
+    }
+    return () => {
+      if (socket) socket.off("recivedmsg");
     };
-    setMessages((prev) => [...prev, newMsg]);
+  }, [socket]);
+
+  useEffect(() => {
+    const getNotifications = async () => {
+      try {
+        const res = await fetch('http://localhost:8080/api/v1/socket/getNotifications', {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            room: "vihaanpratap8273@gmail.com"//user email
+          })
+        });
+        const data = await res.json();
+        setNotifications(data.notifications );
+        console.log("ya data ha",data.notifications);
+      } catch (error) {
+        console.log(error);
+      }
+    };
+    getNotifications();
+  }, []);
+
+  const handleSend = async () => {
+    if (inputText.trim() === '') return;
+    
+    const newMsg = {
+      sender: 'me',//user name
+      reciver: reciver.name,
+      message: inputText,
+      date: new Date().toLocaleDateString(),
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      room: reciver.email
+    };
+
+    try {
+      const res = await fetch('http://localhost:8080/api/v1/socket/notification', {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          sender: 'me',//user name
+      reciver: reciver.name,
+      message: inputText,
+      date: new Date().toLocaleDateString(),
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      room: reciver.email
+        })
+      });
+      const result = await res.json();
+      console.log(result);
+    } catch (error) {
+      console.log(error);
+    }
+
+    socket?.emit("sendmsg", newMsg);
     setInputText('');
   };
 
@@ -78,10 +201,50 @@ export default function ChatsPage() {
       <div className="w-1/4 bg-white border-r border-gray-300 flex flex-col">
         <div className="p-4 border-b border-gray-200">
           <input
+            ref={inputRef}
             type="text"
             placeholder="Search or start new chat"
             className="w-full px-4 py-2 text-black rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-green-500"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            onFocus={() => setShowDropdown(true)}
+            onClick={() => setShowDropdown(true)}
           />
+          
+          {/* Dropdown container */}
+          {showDropdown && (
+            <div 
+              ref={dropdownRef}
+              className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto"
+            >
+              <ul>
+                {filteredUsers.length > 0 ? (
+                  filteredUsers.map(user => (
+                    <li 
+                      key={user.id}
+                      className="px-4 py-2 hover:bg-green-50 cursor-pointer border-b border-gray-100 last:border-b-0"
+                      onClick={() => {
+                        setShowDropdown(false);
+                        handleContactClick(user);
+                      }}
+                    >
+                      <div className="flex items-center">
+                        <div className="w-8 h-8 rounded-full bg-green-200 flex items-center justify-center mr-3">
+                          {user.name.charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                          <div className="font-medium">{user.name}</div>
+                          <div className="text-sm text-gray-500">{user.email}</div>
+                        </div>
+                      </div>
+                    </li>
+                  ))
+                ) : (
+                  <li className="px-4 py-2 text-gray-500">No users found</li>
+                )}
+              </ul>
+            </div>
+          )}
         </div>
 
         <div className="flex-1 overflow-y-auto">
@@ -126,7 +289,7 @@ export default function ChatsPage() {
         <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50">
           {messages.map((msg) => (
             <div
-              key={msg.id}
+              key={msg.id || msg.time}
               className={`max-w-xs px-4 py-2 rounded-lg shadow-sm ${
                 msg.sender === 'me'
                   ? 'ml-auto bg-green-600 text-white'
@@ -201,6 +364,51 @@ export default function ChatsPage() {
         </div>
       </div>
 
+      {/* Notification Button - Added here */}
+      <button
+        className="fixed bottom-6 left-6 bg-green-600 text-white p-3 rounded-full shadow-lg hover:bg-green-700 z-40"
+        onClick={() => setShowNotifications(!showNotifications)}
+      >
+        <span className="text-xl">🔔</span>
+        {notifications.filter(n => !n.read).length > 0 && (
+          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+            {notifications.filter(n => !n.read).length}
+          </span>
+        )}
+      </button>
+
+      {/* Notification Panel - New component */}
+      {showNotifications && (
+        <div className="fixed bottom-20 left-6 w-80 bg-white rounded-lg shadow-xl border border-gray-200 z-50 max-h-96 overflow-y-auto">
+          <div className="p-4 border-b border-gray-200 flex justify-between items-center">
+            <h3 className="font-semibold">Notifications</h3>
+            <button 
+              onClick={() => setShowNotifications(false)}
+              className="text-gray-500 hover:text-gray-700"
+            >
+              ✕
+            </button>
+          </div>
+          <div className="divide-y divide-gray-100">
+            {notifications.length > 0 ? (
+              notifications.map((notification) => (
+                <div 
+                  key={notification.id} 
+                  className={`p-3 ${!notification.read ? 'bg-blue-50' : ''}`}
+                >
+                  <div className="flex justify-between">
+                    <p className="text-gray-800">{notification.text}</p>
+                    <span className="text-xs text-gray-500">{notification.time}</span>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="p-4 text-center text-gray-500">No notifications</div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Simple Profile Modal */}
       {showProfile && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -223,7 +431,7 @@ export default function ChatsPage() {
               </div>
               <div className="flex justify-between">
                 <span>Status:</span>
-                <span>Hey there! I’m using WhatsApp</span>
+                <span>Hey there! I'm using WhatsApp</span>
               </div>
             </div>
             <button

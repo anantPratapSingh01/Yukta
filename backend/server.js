@@ -1,16 +1,18 @@
 // socket-server.js
-const express = require('express');
-const http = require('http'); // 👈 You were missing this!
-const { Server } = require('socket.io');
-const { default: Router } = require('./router/router');
-const cors = require('cors');
-const { connectDB } = require('./database/db');
+import express from 'express';
+import http from 'http'; // 👈 You were missing this!
+import { Server } from 'socket.io';
+import Router from './router/router.js'; // Default import
+import Router1 from './router/notification.model.js'
+import cors from 'cors';
+import { connectDB } from './database/db.js';
 
 const app = express();
 
 app.use(cors());
 app.use(express.json());
 app.use('/api/v1/socket', Router);
+app.use('/api/v1/socket',Router1)
 
 const server = http.createServer(app); // 👈 Use http.createServer, not "new createServer"
 
@@ -26,12 +28,12 @@ io.on("connection", (socket) => {
 
   socket.on("join_room", (data) => {
     socket.join(data.room);
-    socket.data.username = data.username;
-    socket.to(data.room).emit("recivedmsg", {
-      message: `${data.username} has joined the room`,
-      room: data.room,
-      username: "admin",
-    });
+    // socket.data.username = data.username;
+    // socket.to(data.room).emit("recivedmsg", {
+    //   message: `${data.username} has joined the room`,
+    //   room: data.room,
+    //   username: "admin",
+    // });
     socket.emit("joinedRoom", data.room);
   });
 
