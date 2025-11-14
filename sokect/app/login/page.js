@@ -54,35 +54,45 @@ export default function LoginPage() {
     }
   };
 
-  const handleVerifyCode = async () => {
-    if (code.length !== 6 || !/^\d{6}$/.test(code)) {
-      setError('Please enter a valid 6-digit code');
+// app/login/page.js (updated handleVerifyCode section)
+
+const handleVerifyCode = async () => {
+  if (code.length !== 6 || !/^\d{6}$/.test(code)) {
+    setError('Please enter a valid 6-digit code');
+    return;
+  }
+
+  setIsVerifying(true);
+  setError('');
+
+  try {
+    const res = await fetch('/api/verify-code', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, code }),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      setError(data.error || 'Invalid or expired code');
       return;
     }
 
-    setIsVerifying(true);
-    setError('');
-
-    try {
-      const res = await fetch('/api/verify-code', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, code }),
-      });
-
-      if (!res.ok) {
-        setError('Invalid or expired code');
-        return;
-      }
-
-      setIsVerified(true);
-      setTimeout(() => router.push('/chats'), 1000);
-    } catch (err) {
-      setError('Verification failed. Please try again.');
-    } finally {
-      setIsVerifying(false);
+    // ✅ Save user data to localStorage
+    if (data.user && data.user.email) {
+      localStorage.setItem('userEmail', data.user.email);
+      localStorage.setItem('userName', data.user.name);
     }
-  };
+
+    setIsVerified(true);
+    setTimeout(() => router.push('/chats'), 1000);
+  } catch (err) {
+    setError('Verification failed. Please try again.');
+  } finally {
+    setIsVerifying(false);
+  }
+};
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-cyan-50 flex items-center justify-center p-4">
