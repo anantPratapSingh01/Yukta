@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { FiArrowLeft, FiCheckCircle, FiMail, FiUser } from 'react-icons/fi'; // Lightweight icons
 
 export default function RegisterPage() {
   const [email, setEmail] = useState('');
@@ -11,20 +12,28 @@ export default function RegisterPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  // Step 1: Send OTP
+  // Auto-focus OTP input when step changes
+  useEffect(() => {
+    if (step === 'otp') {
+      const input = document.getElementById('otp-input');
+      input?.focus();
+    }
+  }, [step]);
+
   const handleSendCode = async (e) => {
-  e.preventDefault();
-  setLoading(true);
-  setError('');
-  setSuccess('');
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+    setSuccess('');
 
-  try {
-    const UserExist = await fetch(`/api/findOne-user?email=${email}`, {
-      method: 'GET',
-    });
-
-    if (!UserExist.ok) {
+    try {
+      const userRes = await fetch(`/api/findOne-user?email=${encodeURIComponent(email)}`);
       
+      if (userRes.ok) {
+        setError('User already exists. Try logging in.');
+        return;
+      }
+
       const res = await fetch('/api/send-code', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -34,179 +43,201 @@ export default function RegisterPage() {
       const data = await res.json();
 
       if (!res.ok) {
-        setError(data.error || 'Failed to send code');
+        setError(data.error || 'Failed to send verification code');
         return;
       }
 
       setStep('otp');
-      setSuccess('Verification code sent to your email!');
-    } else {
-      setError('User already exists');
-      return;
+      setSuccess('Check your inbox — we sent a 6-digit code.');
+    } catch (err) {
+      setError('Network error. Please try again.');
+    } finally {
+      setLoading(false);
     }
-  } catch (err) {
-    setError('Network error. Please try again.');
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
-
-  // Step 2: Verify OTP
   const handleVerifyCode = async (e) => {
     e.preventDefault();
+    if (otp.length !== 6) return;
+
     setLoading(true);
     setError('');
 
     try {
-      const res = await fetch('/api/verify-code', {
+      const verifyRes = await fetch('/api/verify-code', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, code: otp }),
       });
 
-      const data = await res.json();
-
-      if (!res.ok) {
-        setError(data.error || 'Invalid or expired code');
+      if (!verifyRes.ok) {
+        setError('Invalid or expired code');
         return;
       }
 
-      if(res.ok){
-        const UserSave=await fetch('/api/register-user', {
+      const registerRes = await fetch('/api/register-user', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, name }),
       });
-          console.log("Userdata",UserSave)
-        const userData=await UserSave.json();
-        console.log("userdata in json",useState)
-          if (!UserSave.ok) {
-        setError(userData.error || 'user not register');
-        return;
-      }
-      if(UserSave.ok){
-         const res=await fetch('/api/findOne-user', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
-      });
-        const userVrify=await res.json()
-        console.log(userVrify)
 
-      }
-        
+      if (!registerRes.ok) {
+        setError('Registration failed. Please try again.');
+        return;
       }
 
       setStep('success');
-      setSuccess('✅ Registration successful! You can now log in with your email.');
+      setSuccess('Account created successfully!');
     } catch (err) {
-      setError('Verification failed. Please try again.');
+      setError('Something went wrong. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
-      <div className="w-full max-w-md bg-white rounded-xl shadow-md p-6">
-        <h1 className="text-2xl font-bold text-center mb-6 text-gray-800">
-          {step === 'form' ? 'Register' : step === 'otp' ? 'Verify Email' : 'Success!'}
-        </h1>
+    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-cyan-50 flex items-center justify-center p-4">
+      {/* Decorative floating elements (subtle) */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute -top-1/4 -left-1/4 w-1/2 h-1/2 rounded-full bg-indigo-100 opacity-30 blur-3xl"></div>
+        <div className="absolute -bottom-1/4 -right-1/4 w-1/2 h-1/2 rounded-full bg-cyan-100 opacity-30 blur-3xl"></div>
+      </div>
 
-        {error && <div className="bg-red-100 text-red-700 p-3 rounded mb-4">{error}</div>}
-        {success && <div className="bg-green-100 text-green-700 p-3 rounded mb-4">{success}</div>}
-
-        {step === 'form' && (
-          <form onSubmit={handleSendCode}>
-            <div className="mb-4">
-              <label className="block text-gray-700 mb-2">Full Name</label>
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="w-full px-4 py-2 border text-black border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
-                required
-                placeholder="Enter your name"
-              />
-            </div>
-            <div className="mb-6">
-              <label className="block text-gray-700 mb-2">Email</label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-4 py-2 border text-black border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
-                required
-                placeholder="you@example.com"
-              />
-            </div>
-            <button
-              type="submit"
-              disabled={loading}
-              className={`w-full py-2 px-4 rounded-lg text-white font-medium ${
-                loading ? 'bg-gray-400' : 'bg-green-600 hover:bg-green-700'
-              }`}
-            >
-              {loading ? 'Sending...' : 'Try to Register'}
-            </button>
-          </form>
-        )}
-
+      <div className="relative w-full max-w-md">
+        {/* Header / Step Indicator */}
         {step === 'otp' && (
-          <form onSubmit={handleVerifyCode}>
-            <p className="text-gray-600 mb-4">
-              We sent a 6-digit code to <strong>{email}</strong>
-            </p>
-            <div className="mb-6">
-              <label className="block text-gray-700 mb-2">Verification Code</label>
-              <input
-                type="text"
-                value={otp}
-                onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                className="w-full px-4 py-2 text-black border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-center text-xl tracking-widest"
-                required
-                placeholder="123456"
-                maxLength={6}
-              />
-            </div>
-            <div className="flex gap-3">
-              <button
-                type="button"
-                onClick={() => setStep('form')}
-                className="flex-1 py-2 px-4 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
-              >
-                Back
-              </button>
-              <button
-                type="submit"
-                disabled={loading || otp.length !== 6}
-                className={`flex-1 py-2 px-4 rounded-lg text-white font-medium ${
-                  loading || otp.length !== 6
-                    ? 'bg-gray-400'
-                    : 'bg-green-600 hover:bg-green-700'
-                }`}
-              >
-                {loading ? 'Verifying...' : 'Verify Code'}
-              </button>
-            </div>
-          </form>
+          <button
+            onClick={() => setStep('form')}
+            className="mb-4 flex items-center text-indigo-600 hover:text-indigo-800 transition-colors"
+          >
+            <FiArrowLeft className="mr-2" /> Back to info
+          </button>
         )}
 
-        {step === 'success' && (
-          <div className="text-center">
-            <div className="text-5xl mb-4">🎉</div>
-            <p className="text-gray-700 mb-6">
-              You’re all set! Now go to <strong>Login</strong> and enter your email to sign in.
+        <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100">
+          {/* Top bar – Yukta branded */}
+          <div className="bg-gradient-to-r from-indigo-600 to-cyan-500 p-5 text-center">
+            <h1 className="text-xl font-bold text-white">
+              {step === 'form' ? 'Join Yukta' : step === 'otp' ? 'Verify Your Email' : 'Welcome!'}
+            </h1>
+            <p className="text-indigo-100 text-sm mt-1">
+              {step === 'form' ? 'Start chatting in seconds' : step === 'otp' ? 'Enter the code we sent you' : 'Your account is ready'}
             </p>
-            <a
-              href="/login"
-              className="inline-block w-full py-2 px-4 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium"
-            >
-              Go to Login
-            </a>
           </div>
-        )}
+
+          {/* Content */}
+          <div className="p-6">
+            {/* Error / Success Messages */}
+            {error && (
+              <div className="mb-5 p-3 bg-red-50 text-red-700 rounded-lg text-sm flex items-center animate-fadeIn">
+                <span>⚠️</span> <span className="ml-2">{error}</span>
+              </div>
+            )}
+            {success && (
+              <div className="mb-5 p-3 bg-green-50 text-green-700 rounded-lg text-sm flex items-center animate-fadeIn">
+                <span>✅</span> <span className="ml-2">{success}</span>
+              </div>
+            )}
+
+            {/* Form Steps */}
+            {step === 'form' && (
+              <form onSubmit={handleSendCode} className="space-y-5 animate-fadeIn">
+                <div>
+                  <label className="flex items-center text-gray-700 text-sm font-medium mb-2">
+                    <FiUser className="mr-2 text-indigo-500" /> Full Name
+                  </label>
+                  <input
+                    type="text"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className="w-full px-4 py-3 text-black border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent bg-gray-50 transition"
+                    required
+                    placeholder="Alex Morgan"
+                  />
+                </div>
+                <div>
+                  <label className="flex items-center text-gray-700 text-sm font-medium mb-2">
+                    <FiMail className="mr-2 text-indigo-500" /> Email Address
+                  </label>
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full px-4 py-3 border text-black border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent bg-gray-50 transition"
+                    required
+                    placeholder="you@domain.com"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className={`w-full py-3 px-4 rounded-xl text-white font-medium transition-all ${
+                    loading
+                      ? 'bg-indigo-400 cursor-not-allowed'
+                      : 'bg-gradient-to-r from-indigo-600 to-cyan-500 hover:from-indigo-700 hover:to-cyan-600 shadow-md hover:shadow-lg transform hover:-translate-y-0.5'
+                  }`}
+                >
+                  {loading ? 'Sending code...' : 'Send Verification Code'}
+                </button>
+              </form>
+            )}
+
+            {step === 'otp' && (
+              <form onSubmit={handleVerifyCode} className="animate-fadeIn">
+                <p className="text-gray-600 mb-5 text-center">
+                  We sent a code to <span className="font-semibold text-indigo-700">{email}</span>
+                </p>
+                <div className="mb-6">
+                  <label className="block text-gray-700 text-sm font-medium mb-2">6-Digit Code</label>
+                  <input
+                    id="otp-input"
+                    type="text"
+                    value={otp}
+                    onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    className="w-full px-4 py-4 text-2xl text-black font-mono text-center border-2 border-gray-200 rounded-xl focus:outline-none focus:border-indigo-400 bg-gray-50 tracking-widest"
+                    placeholder="••••••"
+                    maxLength={6}
+                    inputMode="numeric"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={loading || otp.length !== 6}
+                  className={`w-full py-3 px-4 rounded-xl text-white font-medium transition-all ${
+                    otp.length === 6 && !loading
+                      ? 'bg-gradient-to-r from-indigo-600 to-cyan-500 hover:from-indigo-700 hover:to-cyan-600 shadow-md hover:shadow-lg transform hover:-translate-y-0.5'
+                      : 'bg-gray-300 cursor-not-allowed'
+                  }`}
+                >
+                  {loading ? 'Verifying...' : 'Verify & Complete'}
+                </button>
+              </form>
+            )}
+
+            {step === 'success' && (
+              <div className="text-center animate-fadeIn py-4">
+                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-100 text-green-600 mb-5">
+                  <FiCheckCircle size={32} />
+                </div>
+                <h2 className="text-lg font-semibold text-gray-800 mb-3">You’re in!</h2>
+                <p className="text-gray-600 mb-6">
+                  Your Yukta account is ready. Start chatting, sharing, and connecting instantly.
+                </p>
+                <a
+                  href="/login"
+                  className="inline-block w-full py-3 px-4 bg-gradient-to-r from-indigo-600 to-cyan-500 text-white rounded-xl font-medium hover:from-indigo-700 hover:to-cyan-600 shadow-md transition"
+                >
+                  Go to Login
+                </a>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Footer hint */}
+        <p className="text-center text-gray-500 text-xs mt-4">
+          Yukta • Real-time chat for teams that move fast
+        </p>
       </div>
     </div>
   );
