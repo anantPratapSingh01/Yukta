@@ -15,15 +15,15 @@ export default function ChatsPage() {
   // Mock chat history per contact
   const chatHistory = {
     '1': [
-      { id: 1, text: 'Hi!', sender: 'other', time: '10:30 AM' },
-      { id: 2, text: 'Hey! Kya haal hai?', sender: 'me', time: '10:31 AM' },
+      { id: 1, message: 'Hi!', sender: 'other', time: '10:30 AM' },
+      { id: 2, message: 'Hey! Kya haal hai?', sender: 'me', time: '10:31 AM' },
     ],
     '2': [
-      { id: 1, text: 'Kal party hai?', sender: 'me', time: '9:40 AM' },
-      { id: 2, text: 'Haan! 7 baje', sender: 'other', time: '9:45 AM' },
+      { id: 1, message: 'Kal party hai?', sender: 'me', time: '9:40 AM' },
+      { id: 2, message: 'Haan! 7 baje', sender: 'other', time: '9:45 AM' },
     ],
-    '3': [{ id: 1, text: 'Agenda bhejo', sender: 'other', time: '3:00 PM' }],
-    '4': [{ id: 1, text: 'Khana kha liya?', sender: 'other', time: '8:00 PM' }],
+    '3': [{ id: 1, message: 'Agenda bhejo', sender: 'other', time: '3:00 PM' }],
+    '4': [{ id: 1, message: 'Khana kha liya?', sender: 'other', time: '8:00 PM' }],
   };
 
   const [selectedContact, setSelectedContact] = useState(contacts[0]);
@@ -39,7 +39,9 @@ export default function ChatsPage() {
   const dropdownRef = useRef(null);
   const [socket, setSocket] = useState(null);
   const [reciver, setReciver] = useState(null);
-  const [UserData, setUserData] = useState({email: 'user@example.com'}); // Mock user data
+  const [userEmail, setUserEmail] = useState(''); 
+  const [userName, setUserName] = useState(''); 
+  const [contact, setContact] = useState([]);
 
   // New notification states
   const [showNotifications, setShowNotifications] = useState(false);
@@ -59,6 +61,14 @@ export default function ChatsPage() {
       }
     };
     AllUser();
+  }, []);
+
+  useEffect(() => {
+    // Fixed: Direct string fetch
+    const email = localStorage.getItem('userEmail') || '';
+    const user = localStorage.getItem('userName') || '';
+    setUserName(user);
+    setUserEmail(email);
   }, []);
 
   useEffect(() => {
@@ -112,13 +122,40 @@ export default function ChatsPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const handleContactClick = (contact) => {
+  const handleContactClick = async(contact) => {
+    console.log("ya contect ha",contact)
     setSelectedContact(contact);
     setMessages(chatHistory[contact.id] || []);
+     
+     try {
+      const res=await fetch('http://localhost:8080/api/v1/socket/getChat',{
+        method:"POST",
+        headers:{
+          "Content-Type":"application/json"
+        },
+        body:JSON.stringify({
+          room:contact.email
+        })
+      });
+      const data=await res.json();
+      console.log("chat data",data);
+     setContact([{
+        id: contact._id,
+        name: contact.name,
+        email: contact.email,
+        lastMsg: data.chats.length>0 ? data.chats[data.chats.length-1].message : '',
+        time: data.chats.length>0 ? data.chats[data.chats.length-1].time : '',
+        dp: '👤'
+      }])
+      setMessages(data.chats || [])
+    } catch (error) {
+      console.log(error)
+    }
 
     socket?.emit('join_room', { room: contact.email });
     setReciver(contact);
   };
+ 
 
   useEffect(() => {
     if (socket) {
@@ -129,10 +166,12 @@ export default function ChatsPage() {
     return () => {
       if (socket) socket.off("recivedmsg");
     };
-  }, [socket]);
+  }, [socket]); // Fixed: Changed dependency from userName to socket
 
   useEffect(() => {
+    // Fixed: Use userEmail in dependency
     const getNotifications = async () => {
+      if (!userEmail) return; // Don't call if no email
       try {
         const res = await fetch('http://localhost:8080/api/v1/socket/getNotifications', {
           method: "POST",
@@ -140,45 +179,61 @@ export default function ChatsPage() {
             "Content-Type": "application/json"
           },
           body: JSON.stringify({
-            room: "vihaanpratap8273@gmail.com"//user email
+            reciver: userName,
           })
         });
-        const data = await res.json();
-        setNotifications(data.notifications );
-        console.log("ya data ha",data.notifications);
+        const data = await res.json(); 
+        console.log(data); 
+        setNotifications(data.notifications || []);
+        console.log("ya data ha", data.notifications);
       } catch (error) {
         console.log(error);
       }
     };
     getNotifications();
-  }, []);
+  }, [userEmail, showNotifications]); 
 
   const handleSend = async () => {
-    if (inputText.trim() === '') return;
+    if (inputText.trim() === '' || !reciver) return;
     
     const newMsg = {
-      sender: 'me',//user name
-      reciver: reciver.name,
+      sender: userName, 
+      reciver: reciver.name||reciver.sender,
       message: inputText,
       date: new Date().toLocaleDateString(),
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      room: reciver.email
+      room: reciver.email||reciver.room
     };
 
     try {
+      const res1= await fetch('http://localhost:8080/api/v1/socket/chat', {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          sender: userName,
+      reciver: reciver.name||reciver.sender,
+      message: inputText,
+      date: new Date().toLocaleDateString(),
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      room: reciver.email||reciver.room
+    })});
+      const result1 = await res1.json();
+      console.log(result1);
       const res = await fetch('http://localhost:8080/api/v1/socket/notification', {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          sender: 'me',//user name
-      reciver: reciver.name,
+          sender: userName, 
+      reciver: reciver.name||reciver.sender,
       message: inputText,
       date: new Date().toLocaleDateString(),
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      room: reciver.email
-        })
+      room: reciver.email||reciver.room
+    }) 
       });
       const result = await res.json();
       console.log(result);
@@ -189,10 +244,19 @@ export default function ChatsPage() {
     socket?.emit("sendmsg", newMsg);
     setInputText('');
   };
+  
 
   const handleAttachmentSelect = (type) => {
     alert(`"${type}" select kiya gaya! Ab file upload modal aa sakta hai.`);
     setShowAttachmentMenu(false);
+  };
+
+  const handleOpen = (notification) => {
+    console.log("notifi",notification)
+    
+    handleContactClick({ name: notification.sender, email: notification.room ,currentEmail:notification.email});
+    setShowNotifications(false);
+   
   };
 
   return (
@@ -215,7 +279,7 @@ export default function ChatsPage() {
           {showDropdown && (
             <div 
               ref={dropdownRef}
-              className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto"
+              className="absolute z-10 mt-1 w-[280px] bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto"
             >
               <ul>
                 {filteredUsers.length > 0 ? (
@@ -248,7 +312,7 @@ export default function ChatsPage() {
         </div>
 
         <div className="flex-1 overflow-y-auto">
-          {contacts.map((contact) => (
+          {contact.map((contact) => (
             <div
               key={contact.id}
               onClick={() => handleContactClick(contact)}
@@ -262,6 +326,7 @@ export default function ChatsPage() {
               <div className="flex-1 min-w-0">
                 <div className="font-semibold text-black truncate">{contact.name}</div>
                 <div className="text-sm text-gray-500 truncate">{contact.lastMsg}</div>
+                <div className="text-sm text-gray-500 truncate">{contact.email}</div>
               </div>
               <div className="text-xs text-gray-400">{contact.time}</div>
             </div>
@@ -277,7 +342,7 @@ export default function ChatsPage() {
           onClick={() => setShowProfile(true)}
         >
           <div className="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center mr-3 text-white font-bold">
-            {selectedContact.name.charAt(0)}
+            {selectedContact.name.charAt(0).toUpperCase()}
           </div>
           <div>
             <div className="font-semibold text-black">{selectedContact.name}</div>
@@ -291,13 +356,15 @@ export default function ChatsPage() {
             <div
               key={msg.id || msg.time}
               className={`max-w-xs px-4 py-2 rounded-lg shadow-sm ${
-                msg.sender === 'me'
+                msg.sender === userName // ✅ Fixed: Check if sender is current user
                   ? 'ml-auto bg-green-600 text-white'
                   : 'mr-auto bg-white text-black border border-gray-200'
               }`}
             >
-              <div>{msg.text}</div>
-              <div className={`text-xs mt-1 ${msg.sender === 'me' ? 'text-green-100' : 'text-gray-500'}`}>
+              <div>{msg.message}</div>
+              <div className={`text-xs mt-1 ${
+                msg.sender === userName ? 'text-green-100' : 'text-gray-500'
+              }`}>
                 {msg.time}
               </div>
             </div>
@@ -391,13 +458,15 @@ export default function ChatsPage() {
           </div>
           <div className="divide-y divide-gray-100">
             {notifications.length > 0 ? (
-              notifications.map((notification) => (
+              notifications.map((notification, index) => (
                 <div 
-                  key={notification.id} 
+                  key={index} 
                   className={`p-3 ${!notification.read ? 'bg-blue-50' : ''}`}
+                  onClick={() => handleOpen(notification)} // ✅ Fixed: Pass notification object
                 >
                   <div className="flex justify-between">
-                    <p className="text-gray-800">{notification.text}</p>
+                    <p className="text-gray-800">{notification.message}</p>
+                    <span className="text-xs text-gray-500">{notification.sender}</span>
                     <span className="text-xs text-gray-500">{notification.time}</span>
                   </div>
                 </div>

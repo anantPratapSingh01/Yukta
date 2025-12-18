@@ -1,5 +1,5 @@
 import express from 'express'
-import Chat from '../model/chat.model';
+import Chat from '../model/chat.model.js';
 
 const Router=express.Router();
 
@@ -7,7 +7,7 @@ Router.route('/chat').post(async(req,res)=>{
     try {
         const {sender,reciver,message,date,time,room}=req.body;
 
-        if(!sender || !reciver || !message || !date || !time){
+        if(!sender || !reciver || !message || !date || !time||!room){
             return res.status(400).json({message:"All fields are required"});
         }
         // Save chat message to database
