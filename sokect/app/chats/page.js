@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, use } from 'react';
 import { io } from 'socket.io-client';
 
 export default function ChatsPage() {
@@ -42,6 +42,7 @@ export default function ChatsPage() {
   const [userEmail, setUserEmail] = useState(''); 
   const [userName, setUserName] = useState(''); 
   const [contact, setContact] = useState([]);
+  const [trigger, setTrigger] = useState(false);
 
   // New notification states
   const [showNotifications, setShowNotifications] = useState(false);
@@ -50,18 +51,40 @@ export default function ChatsPage() {
   const messagesEndRef = useRef(null);
   const attachmentRef = useRef(null);
 
-  useEffect(() => {
-    const AllUser = async () => {
-      try {
-        const res = await fetch('/api/register-user');
-        const data = await res.json();
-        setAllUsers(data.users);
-      } catch (error) {
-        console.log("Error fetching users:", error);
-      }
-    };
-    AllUser();
-  }, []);
+ useEffect(() => {
+  const AllUser = async () => {
+    try {
+      const [res, res2] = await Promise.all([
+        fetch('/api/register-user'),
+        fetch('http://localhost:8080/api/v1/socket/getSavedUsers')
+      ]);
+
+      const data = await res.json();
+      const data2 = await res2.json();
+
+      if (!data?.users || !data2?.savedUsers) return;
+
+      setAllUsers(
+        data.users.filter(user => {
+          // current logged-in user ko hatao
+          if (user.email === userEmail) return false;
+
+          // already saved users ko hatao
+          return !data2.savedUsers.some(savedUser =>
+            savedUser.user1 === user.email ||
+            savedUser.user2 === user.email
+          );
+        })
+      );
+    } catch (error) {
+      console.log("Error fetching users:", error);
+    }
+  };
+
+  AllUser();
+}, [userEmail, trigger]);
+
+  
 
   useEffect(() => {
     // Fixed: Direct string fetch
@@ -166,12 +189,12 @@ export default function ChatsPage() {
     return () => {
       if (socket) socket.off("recivedmsg");
     };
-  }, [socket]); // Fixed: Changed dependency from userName to socket
+  }, [socket]); 
 
   useEffect(() => {
-    // Fixed: Use userEmail in dependency
+   
     const getNotifications = async () => {
-      if (!userEmail) return; // Don't call if no email
+      if (!userEmail) return; 
       try {
         const res = await fetch('http://localhost:8080/api/v1/socket/getNotifications', {
           method: "POST",
@@ -258,6 +281,27 @@ export default function ChatsPage() {
     setShowNotifications(false);
    
   };
+  const handleContactSave = async(contact) => {
+    console.log("ya run ho gaya ha")
+    try {
+      console.log(userEmail,contact.email,contact.room)
+      const res=await fetch('http://localhost:8080/api/v1/socket/saveUser',{
+        method:"POST",
+        headers:{
+          "Content-Type":"application/json"
+        },
+        body:JSON.stringify({
+          user1:userEmail,
+          user2:contact.email,
+          room:contact.email
+        })
+      });
+      const data=await res.json();
+      console.log("chat data",data);
+    } catch (error) {
+      console.log(error)
+    }
+  }
 
   return (
     <div className="flex h-screen bg-gray-50 font-sans">
@@ -272,7 +316,9 @@ export default function ChatsPage() {
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             onFocus={() => setShowDropdown(true)}
-            onClick={() => setShowDropdown(true)}
+            onClick={() =>{ setShowDropdown(true);
+              setTrigger(prev => prev + 1)
+            }}
           />
           
           {/* Dropdown container */}
@@ -287,10 +333,12 @@ export default function ChatsPage() {
                     <li 
                       key={user.id}
                       className="px-4 py-2 hover:bg-green-50 cursor-pointer border-b border-gray-100 last:border-b-0"
-                      onClick={() => {
-                        setShowDropdown(false);
-                        handleContactClick(user);
-                      }}
+                        onClick={() => {
+                          setShowDropdown(false);
+                          handleContactClick(user);
+                          handleContactSave(user);
+                          
+                        }}
                     >
                       <div className="flex items-center">
                         <div className="w-8 h-8 rounded-full bg-green-200 flex items-center justify-center mr-3">
@@ -312,10 +360,11 @@ export default function ChatsPage() {
         </div>
 
         <div className="flex-1 overflow-y-auto">
-          {contact.map((contact) => (
+          {contact.map((contact) => ( 
             <div
               key={contact.id}
-              onClick={() => handleContactClick(contact)}
+              onClick={() =>{ handleContactClick(contact)}}
+                
               className={`flex items-center p-3 hover:bg-gray-100 cursor-pointer transition ${
                 selectedContact.id === contact.id ? 'bg-gray-100' : ''
               }`}
@@ -354,7 +403,7 @@ export default function ChatsPage() {
         <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50">
           {messages.map((msg) => (
             <div
-              key={msg.id || msg.time}
+              key={msg.id}
               className={`max-w-xs px-4 py-2 rounded-lg shadow-sm ${
                 msg.sender === userName // ✅ Fixed: Check if sender is current user
                   ? 'ml-auto bg-green-600 text-white'

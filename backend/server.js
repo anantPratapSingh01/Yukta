@@ -5,6 +5,7 @@ import { Server } from 'socket.io';
 import Router from './router/router.js'; // Default import
 import Router1 from './router/notification.model.js'
 import Router2 from './router/chat.route.js'
+import Router3 from './router/saveUser.route.js'
 import cors from 'cors';
 import { connectDB } from './database/db.js';
 
@@ -15,8 +16,9 @@ app.use(express.json());
 app.use('/api/v1/socket', Router);
 app.use('/api/v1/socket',Router1)
 app.use('/api/v1/socket', Router2);
+app.use('/api/v1/socket',Router3);
 
-const server = http.createServer(app); // 👈 Use http.createServer, not "new createServer"
+const server = http.createServer(app); 
 
 const io = new Server(server, {
   cors: {
